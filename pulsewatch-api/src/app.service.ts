@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-
+interface HealthResponse { status: 'ok'; service: string; timestamp: string; }
 @Injectable()
 export class AppService {
-  getHealth(): any {
+  getHealth(): HealthResponse {
     return {
       status: 'ok',
       service: 'PulseWatch API',
