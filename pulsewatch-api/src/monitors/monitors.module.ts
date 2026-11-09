@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 
 import { MonitorsController } from './monitors.controller';
 import { MonitorsService } from './monitors.service';
+import { MonitorCheckerService } from './monitor-checker/monitor-checker.service';
 
 @Module({
   controllers: [MonitorsController],
-  providers: [MonitorsService],
+  providers: [MonitorsService, MonitorCheckerService],
 })
 export class MonitorsModule {}
