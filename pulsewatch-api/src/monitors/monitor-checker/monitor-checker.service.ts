@@ -1,3 +1,4 @@
+
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -14,7 +15,7 @@ export class MonitorCheckerService {
   ) {}
 
   @Interval(10000)
-  async checkMonitors() {
+  async checkMonitors(): Promise<void> {
     if (this.isRunning) return;
     this.isRunning = true;
 
@@ -25,19 +26,49 @@ export class MonitorCheckerService {
       });
 
       for (let i = 0; i < monitors.length; i += 10) {
-        await Promise.all(monitors.slice(i, i + 10).map(async (monitor) => {
-          const result = await this.checker.check(monitor.url, monitor.method);
+        const batch = monitors.slice(i, i + 10);
 
-          await this.prisma.monitor.update({
-            where: { id: monitor.id },
-            data: { status: result.status },
-          });
+        await Promise.all(
+          batch.map(async (monitor) => {
+            try {
+              const result = await this.checker.check(
+                monitor.url,
+                monitor.method,
+              );
 
-          this.logger.log(`${monitor.name}: ${result.status}`);
-        }));
+              await this.prisma.$transaction([
+                this.prisma.monitor.update({
+                  where: { id: monitor.id },
+                  data: { status: result.status },
+                }),
+                this.prisma.monitorCheck.create({
+                  data: {
+                    monitorId: monitor.id,
+                    status: result.status,
+                    httpStatusCode: result.httpStatusCode,
+                    responseTimeMs: result.responseTimeMs,
+                  },
+                }),
+              ]);
+
+              this.logger.log(
+                `${monitor.name}: ${result.status} | HTTP ${result.httpStatusCode ?? 'N/A'} | ${result.responseTimeMs}ms`,
+              );
+            } catch (error) {
+              this.logger.error(
+                `Failed to check or save monitor "${monitor.name}": ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+              );
+            }
+          }),
+        );
       }
     } catch (error) {
-      this.logger.error('Monitor check cycle failed', error instanceof Error ? error.stack : String(error));
+      this.logger.error(
+        'Monitor check cycle failed',
+        error instanceof Error ? error.stack : String(error),
+      );
     } finally {
       this.isRunning = false;
     }

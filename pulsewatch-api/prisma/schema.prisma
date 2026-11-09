@@ -42,6 +42,21 @@ model Monitor {
   intervalSeconds Int           @default(60)
   enabled         Boolean       @default(true)
   status          MonitorStatus @default(PENDING)
+  checks MonitorCheck[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 }
+
+model MonitorCheck {
+  id             String   @id @default(uuid())
+  monitorId      String
+  status         String
+  httpStatusCode Int?
+  responseTimeMs Int?
+  checkedAt      DateTime @default(now())
+  monitor        Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([monitorId, checkedAt])
+  // Database-কে বলছে monitorId এবং checkedAt এই দুটি column-এর ওপর একসঙ্গে index তৈরি করতে।
+}
+
