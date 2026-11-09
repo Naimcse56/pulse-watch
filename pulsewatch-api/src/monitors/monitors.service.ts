@@ -1,69 +1,125 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-
+import { HttpMethod as PrismaHttpMethod } from '@prisma/client';
+import { MonitorStatus } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateMonitorDto } from './dto/create-monitor.dto';
 import { UpdateMonitorDto } from './dto/update-monitor.dto';
-import { MonitorRecord } from './monitor.types';
 
 @Injectable()
 export class MonitorsService {
-  private readonly monitors: MonitorRecord[] = [];
+  constructor(private readonly prisma: PrismaService) {}
+  create(dto: CreateMonitorDto) {
+    // this = বর্তমান MonitorsService object।
+    // prisma = Inject করা PrismaService।
+    // this.prisma: PrismaService-এর instance
+    // monitor = Prisma schema-এর Monitor model।
+    return this.prisma.monitor.create({
+      data: {
+        name: dto.name,
+        url: dto.url,
+        method: dto.method as PrismaHttpMethod,
+        intervalSeconds: dto.intervalSeconds,
+        enabled: dto.enabled ?? true,
+      }
+    });
+  }
 
-  create(dto: CreateMonitorDto): MonitorRecord {
-    const monitor: MonitorRecord = {
-      id: randomUUID(),
-      name: dto.name,
-      url: dto.url,
-      method: dto.method,
-      intervalSeconds: dto.intervalSeconds,
-      enabled: dto.enabled ?? true,
-      status: 'PENDING',
-      createdAt: new Date().toISOString(),
+  findAll() {
+    return this.prisma.monitor.findMany({
+      orderBy: { name: 'asc'},
+    })
+  }
+
+  findByPaginate(page = 1, limit = 10) {
+    // To avoid negative or zero values for page and limit.
+    page = Math.max(1, page);
+    limit = Math.min(100, Math.max(1, limit));
+    const skip = (page - 1) * limit;
+
+    return this.prisma.monitor.findMany({
+      skip,
+      take: limit,
+      orderBy: {
+        name: 'asc',
+      },
+    });
+  }
+
+  async findBySearchAndPaginate( page = 1, limit = 10, search = '', status?: MonitorStatus, ) {
+    page = Math.max(1, page);
+    limit = Math.min(100, Math.max(1, limit));
+
+    const skip = (page - 1) * limit;
+
+    const where = {
+      ...(search && {
+        OR: [
+          {
+            name: {
+              contains: search,
+              mode: 'insensitive' as const,
+            },
+          },
+          {
+            url: {
+              contains: search,
+              mode: 'insensitive' as const,
+            },
+          },
+        ],
+      }),
+
+      ...(status && { status }),
     };
 
-    this.monitors.push(monitor);
+    const [monitors, total] = await Promise.all([
+      this.prisma.monitor.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          name: 'asc',
+        },
+      }),
 
-    return monitor;
+      this.prisma.monitor.count({ where }),
+    ]);
+
+    return {
+      data: monitors,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit), },
+    };
   }
 
-  findAll(): MonitorRecord[] {
-    return [...this.monitors];
-  }
-
-  findOne(id: string): MonitorRecord {
-    const monitor = this.monitors.find((item) => item.id === id);
-
+  async findOne(id: string) {
+    const monitor = await this.prisma.monitor.findUnique({
+      where: { id },
+    });
     if (!monitor) {
-        throw new NotFoundException(`Monitor with ID ${id} not found`);
+      throw new NotFoundException(`Monitor with ID ${id} not found`);
     }
 
     return monitor;
-    }
+  }
 
-    update(id: string, dto: UpdateMonitorDto): MonitorRecord {
-    const index = this.monitors.findIndex((item) => item.id === id);
+  async update(id: string, dto: UpdateMonitorDto) {
+    await this.findOne(id);
 
-    if (index === -1) {
-        throw new NotFoundException(`Monitor with ID ${id} not found`);
-    }
-
-    this.monitors[index] = {
-        ...this.monitors[index],
+    return this.prisma.monitor.update({
+      where: { id },
+      data: {
         ...dto,
-    };
+        method: dto.method as PrismaHttpMethod | undefined,
+      },
+    });
+  }
 
-    return this.monitors[index];
-    }
+  async remove(id: string) {
+    await this.findOne(id);
 
-    remove(id: string): MonitorRecord {
-    const index = this.monitors.findIndex((item) => item.id === id);
-
-    if (index === -1) {
-        throw new NotFoundException(`Monitor with ID ${id} not found`);
-    }
-
-    const [deletedMonitor] = this.monitors.splice(index, 1);
-
-    return deletedMonitor;
-    }
+    return this.prisma.monitor.delete({
+      where: { id },
+    });
+  }
 }
