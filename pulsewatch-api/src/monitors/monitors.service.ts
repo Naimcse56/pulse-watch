@@ -33,6 +33,14 @@ export class MonitorsService {
 
   findAll() {
     return this.prisma.monitor.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+      },
       orderBy: { name: 'asc'},
     })
   }
@@ -101,6 +109,14 @@ export class MonitorsService {
   async findOne(id: string) {
     const monitor = await this.prisma.monitor.findUnique({
       where: { id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+      },
     });
     if (!monitor) {
       throw new NotFoundException(`Monitor with ID ${id} not found`);
