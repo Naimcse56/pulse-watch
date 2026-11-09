@@ -1,13 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SafeHttpCheckerService } from '../safe-http-checker.service';
 
 @Injectable()
 export class MonitorCheckerService {
   private readonly logger = new Logger(MonitorCheckerService.name);
   private isRunning = false;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly checker: SafeHttpCheckerService,
+  ) {}
 
   @Interval(10000)
   async checkMonitors() {
@@ -15,21 +19,23 @@ export class MonitorCheckerService {
     this.isRunning = true;
 
     try {
-      const monitors = await this.prisma.monitor.findMany({ where: { enabled: true }, select: { id: true, name: true, url: true, method: true } });
+      const monitors = await this.prisma.monitor.findMany({
+        where: { enabled: true },
+        select: { id: true, name: true, url: true, method: true },
+      });
 
-      await Promise.all(monitors.map(async (monitor) => {
-        let status: 'UP' | 'DOWN' = 'DOWN';
+      for (let i = 0; i < monitors.length; i += 10) {
+        await Promise.all(monitors.slice(i, i + 10).map(async (monitor) => {
+          const result = await this.checker.check(monitor.url, monitor.method);
 
-        try {
-          const response = await fetch(monitor.url, { method: monitor.method, signal: AbortSignal.timeout(5000), redirect: 'manual' });
-          status = response.status >= 200 && response.status < 400 ? 'UP' : 'DOWN';
-        } catch {
-          status = 'DOWN';
-        }
+          await this.prisma.monitor.update({
+            where: { id: monitor.id },
+            data: { status: result.status },
+          });
 
-        await this.prisma.monitor.update({ where: { id: monitor.id }, data: { status } });
-        this.logger.log(`${monitor.name}: ${status}`);
-      }));
+          this.logger.log(`${monitor.name}: ${result.status}`);
+        }));
+      }
     } catch (error) {
       this.logger.error('Monitor check cycle failed', error instanceof Error ? error.stack : String(error));
     } finally {
