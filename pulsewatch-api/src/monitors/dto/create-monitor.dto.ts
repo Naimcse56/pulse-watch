@@ -1,6 +1,9 @@
-import { IsBoolean, IsIn, IsOptional, IsString, IsUrl, Length, } from 'class-validator';
-
+import { IsBoolean, IsIn, IsOptional, IsString, IsUrl, Length, IsUUID } from 'class-validator';
 export class CreateMonitorDto {
+  @IsOptional()
+  @IsUUID()
+  userId?: string;
+
   @IsString()
   @Length(2, 100)
   name: string;

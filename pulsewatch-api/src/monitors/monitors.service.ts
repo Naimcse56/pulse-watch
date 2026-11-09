@@ -21,6 +21,12 @@ export class MonitorsService {
         method: dto.method as PrismaHttpMethod,
         intervalSeconds: dto.intervalSeconds,
         enabled: dto.enabled ?? true,
+        ...(dto.userId ? {
+                            user: {
+                              // connect → Prisma Relation Connect
+                              connect: { id: dto.userId },
+                            },
+                          } : {}),
       }
     });
   }
