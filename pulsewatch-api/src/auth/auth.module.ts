@@ -8,6 +8,8 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 
+import { JwtStrategy } from './strategies/jwt.strategy';
+
 // @Module()-এর মধ্যে মূলত তিনটি গুরুত্বপূর্ণ property আছে। import / controllers / providers
 // registerAsync() ব্যবহার করা হয়েছে কারণ JWT configuration সরাসরি hardcode না করে .env থেকে নিতে চাচ্ছো।
 @Module({
@@ -23,6 +25,6 @@ import { AuthService } from './auth.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService],
+  providers: [AuthService, JwtStrategy],
 })
 export class AuthModule {}

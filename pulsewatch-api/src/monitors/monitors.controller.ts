@@ -1,11 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards, } from "@nestjs/common";
 import { MonitorStatus } from '@prisma/client';
 
 import { CreateMonitorDto } from "./dto/create-monitor.dto";
 import { UpdateMonitorDto } from "./dto/update-monitor.dto";
 import { MonitorsService } from "./monitors.service";
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller("monitors")
+@UseGuards(AuthGuard('jwt'))
 export class MonitorsController {
     constructor(private readonly monitorsService: MonitorsService) {}
 
