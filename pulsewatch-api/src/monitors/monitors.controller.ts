@@ -8,6 +8,8 @@ import { CreateMonitorDto } from './dto/create-monitor.dto';
 import { UpdateMonitorDto } from './dto/update-monitor.dto';
 import { MonitorsService } from './monitors.service';
 
+import { MonitorHistoryQueryDto } from './dto/monitor-history-query.dto';
+
 type AuthenticatedRequest = Request & {
     user: {
     userId: string;
@@ -65,5 +67,19 @@ export class MonitorsController {
     @Delete(':id')
     remove(@Param('id') id: string, @Req() req: AuthenticatedRequest,) {
         return this.monitorsService.remove(id, req.user.userId);
+    }
+
+    @Get('statistics/overview')
+    @UseGuards(AuthGuard('jwt'))
+    getOverview(@Req() req: Request & { user: { userId: string; email: string }; },)
+    {
+        return this.monitorsService.getOverview(req.user.userId);
+    }
+
+    @Get(':id/history')
+    @UseGuards(AuthGuard('jwt'))
+    getHistory(@Param('id') id: string, @Query() query: MonitorHistoryQueryDto, @Req() req: Request & { user: { userId: string; email: string } },)
+    {
+        return this.monitorsService.findHistory(id, req.user.userId, query);
     }
 }

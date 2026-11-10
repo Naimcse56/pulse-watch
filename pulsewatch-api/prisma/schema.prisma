@@ -54,6 +54,7 @@ model MonitorCheck {
   httpStatusCode Int?
   responseTimeMs Int?
   checkedAt      DateTime @default(now())
+  failureReason  String?
   monitor        Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
 
   @@index([monitorId, checkedAt])

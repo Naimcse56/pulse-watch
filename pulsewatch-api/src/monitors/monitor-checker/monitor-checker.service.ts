@@ -47,6 +47,7 @@ export class MonitorCheckerService {
                     status: result.status,
                     httpStatusCode: result.httpStatusCode,
                     responseTimeMs: result.responseTimeMs,
+                    failureReason: result.failureReason,
                   },
                 }),
               ]);

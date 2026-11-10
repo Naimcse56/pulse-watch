@@ -10,6 +10,7 @@ export interface HttpCheckResult {
   status: 'UP' | 'DOWN';
   httpStatusCode: number | null;
   responseTimeMs: number;
+  failureReason: string | null;
 }
 
 @Injectable()
@@ -45,54 +46,58 @@ export class SafeHttpCheckerService {
         const startedAt = performance.now();
 
         try {
-        const url = new URL(rawUrl);
+            const url = new URL(rawUrl);
 
-        if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Only HTTP and HTTPS are allowed');
-        if (url.username || url.password) throw new Error('Credentials in URLs are not allowed');
-        if (!url.hostname) throw new Error('Hostname is required');
+            if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Only HTTP and HTTPS are allowed');
+            if (url.username || url.password) throw new Error('Credentials in URLs are not allowed');
+            if (!url.hostname) throw new Error('Hostname is required');
 
-        const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
-        const addresses = await this.resolvePublicAddresses(hostname);
-        const pinnedAddress = addresses[0];
+            const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+            const addresses = await this.resolvePublicAddresses(hostname);
+            const pinnedAddress = addresses[0];
 
-        const httpStatusCode = await new Promise<number>((resolve, reject) => {
-            const transport = url.protocol === 'https:' ? https : http;
-            const request = transport.request(url, {
-            method,
-            agent: false,
-            lookup: (_host, options, callback) => {
-                if (options && typeof options === 'object' && 'all' in options && options.all) {
-                    callback(null, addresses);
-                    return;
-                }
-                const chosen = options && typeof options === 'object' && 'family' in options && options.family ? addresses.find((item) => item.family === options.family) : pinnedAddress;
-                if (!chosen) {
-                    callback(new Error('No validated address for requested IP family'), '', 0);
-                    return;
-                }
-                callback(null, chosen.address, chosen.family);
-            },
-            }, (response) => {
-                response.resume();
-                resolve(response.statusCode ?? 0);
+            const httpStatusCode = await new Promise<number>((resolve, reject) => {
+                const transport = url.protocol === 'https:' ? https : http;
+                const request = transport.request(url, {
+                method,
+                agent: false,
+                lookup: (_host, options, callback) => {
+                    if (options && typeof options === 'object' && 'all' in options && options.all) {
+                        callback(null, addresses);
+                        return;
+                    }
+                    const chosen = options && typeof options === 'object' && 'family' in options && options.family ? addresses.find((item) => item.family === options.family) : pinnedAddress;
+                    if (!chosen) {
+                        callback(new Error('No validated address for requested IP family'), '', 0);
+                        return;
+                    }
+                    callback(null, chosen.address, chosen.family);
+                },
+                }, (response) => {
+                    response.resume();
+                    resolve(response.statusCode ?? 0);
+                });
+
+                request.setTimeout(5000, () => request.destroy(new Error('Request timed out')));
+                request.on('error', reject);
+                request.end();
             });
 
-            request.setTimeout(5000, () => request.destroy(new Error('Request timed out')));
-            request.on('error', reject);
-            request.end();
-        });
+            return {
+                status: httpStatusCode >= 200 && httpStatusCode < 400 ? 'UP' : 'DOWN',
+                httpStatusCode,
+                responseTimeMs: Math.round(performance.now() - startedAt),
+                failureReason: httpStatusCode >= 200 && httpStatusCode < 400 ? null : `HTTP status ${httpStatusCode}`,
+            };
+        } catch (error) {
+            const failureReason = error instanceof Error ? error.message : 'Unknown check failure';
 
-        return {
-            status: httpStatusCode >= 200 && httpStatusCode < 400 ? 'UP' : 'DOWN',
-            httpStatusCode,
-            responseTimeMs: Math.round(performance.now() - startedAt),
-        };
-        } catch {
-        return {
-            status: 'DOWN',
-            httpStatusCode: null,
-            responseTimeMs: Math.round(performance.now() - startedAt),
-        };
+            return {
+                status: 'DOWN',
+                httpStatusCode: null,
+                responseTimeMs: Math.round(performance.now() - startedAt),
+                failureReason: failureReason.slice(0, 500),
+            };
         }
     }
 }
