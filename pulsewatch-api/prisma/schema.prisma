@@ -43,6 +43,7 @@ model Monitor {
   enabled         Boolean       @default(true)
   status          MonitorStatus @default(PENDING)
   nextCheckAt     DateTime @default(now())
+  claimUntil      DateTime?
   checks          MonitorCheck[]
   alerts          MonitorAlert[]
   createdAt       DateTime      @default(now())
