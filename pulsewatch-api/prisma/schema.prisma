@@ -66,14 +66,18 @@ enum MonitorAlertType {
   DOWN
   RECOVERED
 }
+
 model MonitorAlert {
   id        String            @id @default(uuid())
   monitorId String
   type      MonitorAlertType
   message   String
+  isRead    Boolean           @default(false)
+  readAt    DateTime?
   createdAt DateTime          @default(now())
   monitor   Monitor           @relation(fields: [monitorId], references: [id], onDelete: Cascade)
 
   @@index([monitorId, createdAt])
   @@index([type, createdAt])
+  @@index([isRead, createdAt])
 }

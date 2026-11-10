@@ -7,6 +7,7 @@ import { MonitorsModule } from './monitors/monitors.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { AlertsModule } from './alerts/alerts.module';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -25,6 +26,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     MonitorsModule,
     AuthModule,
     ScheduleModule.forRoot(),
+    AlertsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
