@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateMonitorDto } from './dto/create-monitor.dto';
 import { UpdateMonitorDto } from './dto/update-monitor.dto';
 import { MonitorHistoryQueryDto } from './dto/monitor-history-query.dto';
+import { MonitorAlertQueryDto } from './dto/monitor-alert-query.dto';
 
 @Injectable()
 export class MonitorsService {
@@ -319,5 +320,61 @@ export class MonitorsService {
     });
 
     return { period: '24 hours', data };
+  }
+
+  // Alert History API
+  async findAlerts( id: string, userId: string, query: MonitorAlertQueryDto,)
+  {
+    const { page, limit } = query;
+
+    const monitor = await this.prisma.monitor.findFirst({
+      where: { id, userId },
+      select: {
+        id: true,
+        name: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!monitor) {
+      throw new NotFoundException('Monitor not found !');
+    }
+
+    const where = { monitorId: id };
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.monitorAlert.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.monitorAlert.count({ where }),
+    ]);
+
+    return {
+      monitor: {
+        id: monitor.id,
+        name: monitor.name,
+      },
+      owner: monitor.user
+        ? {
+            id: monitor.user.id,
+            email: monitor.user.email,
+          }
+        : null,
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 }

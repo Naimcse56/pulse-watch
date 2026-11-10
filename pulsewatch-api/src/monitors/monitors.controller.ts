@@ -9,6 +9,7 @@ import { UpdateMonitorDto } from './dto/update-monitor.dto';
 import { MonitorsService } from './monitors.service';
 
 import { MonitorHistoryQueryDto } from './dto/monitor-history-query.dto';
+import { MonitorAlertQueryDto } from './dto/monitor-alert-query.dto';
 
 type AuthenticatedRequest = Request & {
     user: {
@@ -81,5 +82,18 @@ export class MonitorsController {
     getHistory(@Param('id') id: string, @Query() query: MonitorHistoryQueryDto, @Req() req: Request & { user: { userId: string; email: string } },)
     {
         return this.monitorsService.findHistory(id, req.user.userId, query);
+    }
+
+    @Get(':id/alerts')
+    getAlerts(
+    @Param('id') id: string,
+    @Req() req: { user: { userId: string } },
+    @Query() query: MonitorAlertQueryDto,
+    ) {
+    return this.monitorsService.findAlerts(
+        id,
+        req.user.userId,
+        query,
+    );
     }
 }

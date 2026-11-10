@@ -43,6 +43,7 @@ model Monitor {
   enabled         Boolean       @default(true)
   status          MonitorStatus @default(PENDING)
   checks MonitorCheck[]
+  alerts MonitorAlert[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 }
@@ -61,3 +62,18 @@ model MonitorCheck {
   // Database-কে বলছে monitorId এবং checkedAt এই দুটি column-এর ওপর একসঙ্গে index তৈরি করতে।
 }
 
+enum MonitorAlertType {
+  DOWN
+  RECOVERED
+}
+model MonitorAlert {
+  id        String            @id @default(uuid())
+  monitorId String
+  type      MonitorAlertType
+  message   String
+  createdAt DateTime          @default(now())
+  monitor   Monitor           @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([monitorId, createdAt])
+  @@index([type, createdAt])
+}

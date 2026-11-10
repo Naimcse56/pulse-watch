@@ -22,7 +22,13 @@ export class MonitorCheckerService {
     try {
       const monitors = await this.prisma.monitor.findMany({
         where: { enabled: true },
-        select: { id: true, name: true, url: true, method: true },
+        select: {
+          id: true,
+          name: true,
+          url: true,
+          method: true,
+          status: true,
+        },
       });
 
       for (let i = 0; i < monitors.length; i += 10) {
@@ -36,12 +42,17 @@ export class MonitorCheckerService {
                 monitor.method,
               );
 
-              await this.prisma.$transaction([
-                this.prisma.monitor.update({
+              const previousStatus = monitor.status;
+
+              const alertType = previousStatus === 'UP' && result.status === 'DOWN' ? 'DOWN' : previousStatus === 'DOWN' && result.status === 'UP' ? 'RECOVERED' : null;
+
+              await this.prisma.$transaction(async (tx) => {
+                await tx.monitor.update({
                   where: { id: monitor.id },
                   data: { status: result.status },
-                }),
-                this.prisma.monitorCheck.create({
+                });
+
+                await tx.monitorCheck.create({
                   data: {
                     monitorId: monitor.id,
                     status: result.status,
@@ -49,12 +60,27 @@ export class MonitorCheckerService {
                     responseTimeMs: result.responseTimeMs,
                     failureReason: result.failureReason,
                   },
-                }),
-              ]);
+                });
 
-              this.logger.log(
-                `${monitor.name}: ${result.status} | HTTP ${result.httpStatusCode ?? 'N/A'} | ${result.responseTimeMs}ms`,
-              );
+                if (alertType) {
+                  await tx.monitorAlert.create({
+                    data: {
+                      monitorId: monitor.id,
+                      type: alertType,
+                      message:
+                        alertType === 'DOWN'
+                          ? `Monitor "${monitor.name}" is DOWN`
+                          : `Monitor "${monitor.name}" has RECOVERED`,
+                    },
+                  });
+                }
+              });
+
+              this.logger.log(`${monitor.name}: ${result.status} | HTTP ${ result.httpStatusCode ?? 'N/A' } | ${result.responseTimeMs}ms`,);
+
+              if (alertType) {
+                this.logger.warn(`${monitor.name}: ${alertType} alert created`,);
+              }
             } catch (error) {
               this.logger.error(
                 `Failed to check or save monitor "${monitor.name}": ${
