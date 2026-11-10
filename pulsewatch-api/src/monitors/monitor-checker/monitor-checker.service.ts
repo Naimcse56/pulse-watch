@@ -44,8 +44,8 @@ export class MonitorCheckerService {
 
               const previousStatus = monitor.status;
 
-              const alertType = previousStatus === 'UP' && result.status === 'DOWN' ? 'DOWN' : previousStatus === 'DOWN' && result.status === 'UP' ? 'RECOVERED' : null;
-
+              // const alertType = previousStatus === 'UP' && result.status === 'DOWN' ? 'DOWN' : previousStatus === 'DOWN' && result.status === 'UP' ? 'RECOVERED' : null;
+              const alertType = result.status === 'DOWN' && previousStatus !== 'DOWN' ? 'DOWN' : result.status === 'UP' && previousStatus === 'DOWN' ? 'RECOVERED' : null;
               await this.prisma.$transaction(async (tx) => {
                 await tx.monitor.update({
                   where: { id: monitor.id },
