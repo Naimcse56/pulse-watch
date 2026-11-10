@@ -1,4 +1,3 @@
-
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -14,23 +13,44 @@ export class MonitorCheckerService {
     private readonly checker: SafeHttpCheckerService,
   ) {}
 
+  // Auto run this function after every 10 seconds
   @Interval(10000)
   async checkMonitors(): Promise<void> {
     if (this.isRunning) return;
+
     this.isRunning = true;
 
     try {
+      const now = new Date();
+
+      // Fetch only monitors whose next check time has arrived.
       const monitors = await this.prisma.monitor.findMany({
-        where: { enabled: true },
+        where: {
+          enabled: true,
+          nextCheckAt: {
+            lte: now,
+          },
+        },
         select: {
           id: true,
           name: true,
           url: true,
           method: true,
           status: true,
+          intervalSeconds: true,
+        },
+        orderBy: {
+          nextCheckAt: 'asc',
         },
       });
 
+      if (monitors.length === 0) {
+        return;
+      }
+
+      this.logger.log(`${monitors.length} monitor(s) due for checking`);
+
+      // Limit concurrent HTTP checks to 10.
       for (let i = 0; i < monitors.length; i += 10) {
         const batch = monitors.slice(i, i + 10);
 
@@ -44,12 +64,27 @@ export class MonitorCheckerService {
 
               const previousStatus = monitor.status;
 
-              // const alertType = previousStatus === 'UP' && result.status === 'DOWN' ? 'DOWN' : previousStatus === 'DOWN' && result.status === 'UP' ? 'RECOVERED' : null;
-              const alertType = result.status === 'DOWN' && previousStatus !== 'DOWN' ? 'DOWN' : result.status === 'UP' && previousStatus === 'DOWN' ? 'RECOVERED' : null;
+              const alertType =
+                result.status === 'DOWN' && previousStatus !== 'DOWN'
+                  ? 'DOWN'
+                  : result.status === 'UP' && previousStatus === 'DOWN'
+                    ? 'RECOVERED'
+                    : null;
+
+              // Schedule the next check relative to this check's completion.
+              const nextCheckAt = new Date(
+                Date.now() + monitor.intervalSeconds * 1000,
+              );
+
               await this.prisma.$transaction(async (tx) => {
                 await tx.monitor.update({
-                  where: { id: monitor.id },
-                  data: { status: result.status },
+                  where: {
+                    id: monitor.id,
+                  },
+                  data: {
+                    status: result.status,
+                    nextCheckAt,
+                  },
                 });
 
                 await tx.monitorCheck.create({
@@ -76,10 +111,17 @@ export class MonitorCheckerService {
                 }
               });
 
-              this.logger.log(`${monitor.name}: ${result.status} | HTTP ${ result.httpStatusCode ?? 'N/A' } | ${result.responseTimeMs}ms`,);
+              this.logger.log(
+                `${monitor.name}: ${result.status} | ` +
+                  `HTTP ${result.httpStatusCode ?? 'N/A'} | ` +
+                  `${result.responseTimeMs}ms | ` +
+                  `Next check: ${nextCheckAt.toISOString()}`,
+              );
 
               if (alertType) {
-                this.logger.warn(`${monitor.name}: ${alertType} alert created`,);
+                this.logger.warn(
+                  `${monitor.name}: ${alertType} alert created`,
+                );
               }
             } catch (error) {
               this.logger.error(

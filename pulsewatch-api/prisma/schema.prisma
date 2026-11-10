@@ -42,8 +42,9 @@ model Monitor {
   intervalSeconds Int           @default(60)
   enabled         Boolean       @default(true)
   status          MonitorStatus @default(PENDING)
-  checks MonitorCheck[]
-  alerts MonitorAlert[]
+  nextCheckAt     DateTime @default(now())
+  checks          MonitorCheck[]
+  alerts          MonitorAlert[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 }
