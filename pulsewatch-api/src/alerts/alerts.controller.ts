@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, UseGuards, BadRequestException, } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Query, Req, UseGuards, BadRequestException, } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AlertsService } from './alerts.service';
 
@@ -30,5 +30,11 @@ export class AlertsController {
     @Get('unread-count')
     getUnreadCount(@Req() req: { user: { userId: string } }) {
         return this.alertsService.getUnreadCount(req.user.userId);
+    }
+
+    @Patch(':id/read')
+    markAsRead( @Param('id') id: string, @Req() req: { user: { userId: string } },)
+    {
+        return this.alertsService.markAsRead(id, req.user.userId);
     }
 }
