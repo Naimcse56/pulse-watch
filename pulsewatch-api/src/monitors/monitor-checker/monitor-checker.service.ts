@@ -49,10 +49,11 @@ export class MonitorCheckerService {
       }
 
       this.logger.log(`${monitors.length} monitor(s) due for checking`);
-
-      // Limit concurrent HTTP checks to 10.
-      for (let i = 0; i < monitors.length; i += 10) {
-        const batch = monitors.slice(i, i + 10);
+      // // Limit concurrent HTTP checks to 10 from env
+      const concurrency = Math.max( 1, Number(process.env.MONITOR_CHECK_CONCURRENCY) || 10, );
+      
+      for (let i = 0; i < monitors.length; i += concurrency) {
+        const batch = monitors.slice(i, i + concurrency);
 
         await Promise.all(
           batch.map(async (monitor) => {
